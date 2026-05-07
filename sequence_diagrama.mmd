@@ -1,0 +1,98 @@
+classDiagram
+    class Manutencao { 
+        +Long id
+        +LocalDateTime dataServico
+        +String descricao
+        +BigDecimal valorGasto
+        +Long veiculoId
+        +toString() String
+    }
+
+    class Categoria { 
+        +Long id
+        +String nome
+        +BigDecimal valor_diaria
+        +String descricao
+        +toString() String
+    }
+
+    class Acessorio { 
+        +Long id
+        +String nome
+        +BigDecimal valorAdicional
+        +toString() String
+    }
+
+    class Cliente { 
+        +String nome
+        +String cpf_cnpj
+        +String cnh
+        +String email
+        +String telefone
+        +Date dataCadastro
+        +toString() String
+    }
+
+    class Veiculo { 
+        +Long id
+        +String modelo
+        +String placa
+        +String marca
+        +int ano
+        +StatusVeiculo statusVeiculo
+        +Categoria categoriaId
+        +List~Manutencao~ listaManutencoes
+        +toString() String
+    }
+
+    class StatusVeiculo { 
+        <<enumeration>>
+        DISPONIVEL
+        LOCADO
+        MANUTENCAO
+        ALIENADO
+    }
+
+    class Registro { 
+        +Long id
+        +Long idUsuario
+        +String nome
+        +Date dataRegistro
+        +toString() String
+    }
+
+    class Usuario { 
+        +Long id
+        +String nomeUsuario
+        +String senha
+        +toString() String
+    }
+
+    class Locacao {
+        +Long id
+        +LocalDateTime dataRetirada
+        +BigDecimal valorDiariaAplicado
+        +StatusLocacao statusLocacao
+        +Cliente clienteId
+        +Veiculo veiculoId
+        +List~Acessorio~ acessorios
+        +calcularValorTotal() BigDecimal
+    }
+
+    class StatusLocacao {
+        <<enumeration>>
+        RESERVADA
+        ATIVA
+        FINALIZADA
+        CANCELADA
+    }
+
+    %% Relacionamentos Corrigidos
+    Usuario <|-- Cliente : Herança
+    Veiculo "1" --> "1" Categoria : possui
+    Veiculo "1" -- "*" Manutencao : histórico
+    Veiculo ..> StatusVeiculo : status
+    Locacao "*" --> "1" Cliente : locatário
+    Locacao "*" --> "1" Veiculo : item
+    Locacao "1" -- "*" Acessorio : opcionais
+    Locacao ..> StatusLocacao : status

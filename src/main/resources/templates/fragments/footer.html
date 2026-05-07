@@ -1,0 +1,28 @@
+<footer th:fragment="footer" class="footer-container">
+    <div class="footer-content">
+        <div class="footer-section">
+            <h4>Atendimento</h4>
+            <ul>
+                <li><a th:href="@{/contato}">Contato</a></li>
+                <li><a th:href="@{/pedidos}">Meus Pedidos</a></li>
+                <li><a th:href="@{/faz}">FAQ</a></li>
+            </ul>
+        </div>
+        <div class="footer-section">
+            <h4>Institucional</h4>
+            <ul>
+                
+                <li><a th:href="@{/sobre-nos}">Sobre Nós</a></li>
+                <li><a th:href="@{/politica-troca}">Política de Troca</a></li>
+                <li><a th:href="@{/termos-uso}">Termos de Uso</a></li>
+            </ul>
+        </div>
+        <div class="footer-section">
+            <h4>Formas de Pagamento</h4>
+            <p>Ícones de Cartões, Boleto, PIX...</p>
+        </div>
+    </div>
+    <div class="footer-bottom">
+        <p>&copy; <span th:text="${#dates.year(#dates.createNow())}">2026</span> GWJ Todos os direitos reservados.</p>
+    </div>
+</footer>

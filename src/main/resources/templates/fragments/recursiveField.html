@@ -1,0 +1,34 @@
+<div th:fragment="recursiveField(valor)">
+    <!-- 1. Trata Nulo -->
+    <span th:if="${valor == null}" class="text-muted">—</span>
+
+    <th:block th:if="${valor != null}">
+        
+        <!-- CASO A: É uma Entidade Única (Link Direto) -->
+        <th:block th:if="${valor instanceof T(com.desenvolvimento.sistemas.model.domain.IEntity)}">
+            <span th:if="${valor instanceof T(com.desenvolvimento.sistemas.model.domain.IEntity)}">
+                <a th:href="@{/listar/{entidade}(entidade=${valor.getClass().getSimpleName()}, id=${valor.id})}"
+                th:text="${valor}"
+                title="Clique para ver detalhes">
+                </a>
+            </span>
+        </th:block>
+
+        <!-- CASO B: É uma Coleção (Dropdown com Links) -->
+        <th:block th:if="${valor instanceof T(java.util.Collection)}">
+            <select class="form-select-sm" onchange="if(this.value) window.location.href=this.value">
+                <option value="">-- Ver lista --</option>
+                <option th:each="subItem : ${valor}" 
+                        th:value="${subItem instanceof T(com.desenvolvimento.sistemas.model.domain.IEntity)} ? @{/listar/{entidade}(entidade=${subItem.getClass().getSimpleName()}, id=${subItem.id})} : ''"
+                        th:text="${subItem}">
+                </option>
+            </select>
+        </th:block>
+
+        <!-- CASO C: Tipos Simples (Texto comum) -->
+        <th:block th:if="${!(valor instanceof T(com.desenvolvimento.sistemas.model.domain.IEntity)) and !(valor instanceof T(java.util.Collection))}">
+            <span th:text="${valor}"></span>
+        </th:block>
+
+    </th:block>
+</div>

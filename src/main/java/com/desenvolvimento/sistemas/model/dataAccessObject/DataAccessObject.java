@@ -17,6 +17,9 @@ import java.util.Properties;
 
 import com.desenvolvimento.sistemas.model.domain.IEntity;
 
+import jakarta.persistence.ManyToMany;
+import jakarta.persistence.OneToMany;
+
 public class DataAccessObject {
      // 1. O Properties deve ser inicializado antes de tudo
     private static Properties props = new Properties();
@@ -34,19 +37,19 @@ public class DataAccessObject {
     }
 
     // 3. Pegue os valores dentro do construtor ou métodos, não direto na declaração da variável
-    private String tablePrefix      = props.getProperty("app.database.prefix");
+    private String tablePrefix = props.getProperty("app.database.prefix");
 
 
     // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     // Método create, início.
     /*
     * O que mudou e por quê?
-    * method.getDeclaringClass() != clazz: Se o objeto for um Cliente, mas o método getNome() estiver declarado em Usuario, ele será ignorado neste INSERT. Assim, cada tabela recebe apenas seus respectivos campos.
-    * setObject vs String.valueOf: No banco, uma coluna INT ou DATE pode rejeitar uma String. O setObject deixa o driver do JDBC decidir a melhor conversão.
-    * executeUpdate(): Essencial para operações que modificam dados (INSERT, UPDATE, DELETE).
-    * RETURN_GENERATED_KEYS: Sem isso, o banco não devolve o ID auto-incrementado para o seu return 1L.
-    * Dica de Arquitetura: Como as tabelas estão separadas para Usuario e Cliente, você precisará chamar esse método create duas vezes (uma para a classe pai e outra para a filha) ou implementar uma lógica que percorra a hierarquia de classes e execute os inserts na ordem correta (pai primeiro para gerar o ID).
-    * Para fechar com chave de ouro e garantir que seu sistema seja robusto, aqui está como aplicar o Controle de Transação. Isso evita que o "Pai" seja gravado se o "Filho" der erro:
+    *  a. method.getDeclaringClass() != clazz: Se o objeto for um Cliente, mas o método getNome() estiver declarado em Usuario, ele será ignorado neste INSERT. Assim, cada tabela recebe apenas seus respectivos campos.
+    *  b. setObject vs String.valueOf: No banco, uma coluna INT ou DATE pode rejeitar uma String. O setObject deixa o driver do JDBC decidir a melhor conversão.
+    *  c. executeUpdate(): Essencial para operações que modificam dados (INSERT, UPDATE, DELETE).
+    *  d. RETURN_GENERATED_KEYS: Sem isso, o banco não devolve o ID auto-incrementado para o seu return 1L.
+    *  e. Dica de Arquitetura: Como as tabelas estão separadas para Usuario e Cliente, você precisará chamar esse método create duas vezes (uma para a classe pai e outra para a filha) ou implementar uma lógica que percorra a hierarquia de classes e execute os inserts na ordem correta (pai primeiro para gerar o ID).
+    *  f. Para fechar com chave de ouro e garantir que seu sistema seja robusto, aqui está como aplicar o Controle de Transação. Isso evita que o "Pai" seja gravado se o "Filho" der erro:
     */
     
     public Long create(IEntity entity) {
@@ -89,8 +92,6 @@ public class DataAccessObject {
         return lastId;
     }
 
-
-
     private Long insertForClass(Connection conn, IEntity entity, Class<?> clazz, Long parentId) {
         ArrayList<String> columns = new ArrayList<>();
         ArrayList<Object> values = new ArrayList<>();
@@ -122,14 +123,7 @@ public class DataAccessObject {
             }
         }
 
-        String sql = "INSERT INTO " + tablePrefix + clazz.getSimpleName().toLowerCase() 
-                + " (" + String.join(", ", columns) + ") VALUES (" + String.join(", ", placeholders) + ")";
-
-        // 1. Obtenha a conexão SEM o try-with-resources
-        // Connection conn = ConnectionDB.getInstance().getConnection();
-    
-        // 2. Use o try-with-resources APENAS para o Statement e ResultSet
-
+        String sql = buildInsertSql(clazz, columns);
 
         try (PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             
@@ -162,7 +156,7 @@ public class DataAccessObject {
     // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 
- // Método read (início): -----------------------------------------------------------------------------------------------------------------------------------------------------------
+    // Método read (início): -----------------------------------------------------------------------------------------------------------------------------------------------------------
     public List<IEntity> read(IEntity entity) {
         List<IEntity> listEntity = new ArrayList<>();
         Class<?> clazz = entity.getClass();
@@ -171,7 +165,7 @@ public class DataAccessObject {
         String where = buildWhereClause(entity);
         String tableName = tablePrefix + clazz.getSimpleName().toLowerCase();
         String sql = "SELECT * FROM `" + tableName + "` " + where;
-        System.out.println("DataAccessObject: sql = " + sql);
+       // System.out.println("DataAccessObject: sql = " + sql);
 
         // 2. Abre a conexão no try-with-resources para garantir o fechamento automático
         try (Connection conn = ConnectionDB.getInstance().getConnection();
@@ -180,20 +174,13 @@ public class DataAccessObject {
 
             while (rs.next()) {
                 IEntity instance = (IEntity) clazz.getDeclaredConstructor().newInstance();
-// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
 
-                //if () {
-                    // 3. Passa 'conn' para os métodos que fazem novas consultas
-                    fillEntityRecursively(instance, clazz, rs, conn);
-               // } else {
-                    // 4. Passa 'conn' para processar as listas/associações sem abrir nova conexão
-                    // REMOVA OU COMENTE A LINHA ABAIXO:
-
-                    processAssociations(instance, conn);
-               // }
-                    
-// <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
-// Lógica para decidir entre recursão ou processamento de associações
+                // 2.1. Preenche os dados da tabela atual e sobe a hierarquia (Herança)
+                fillEntityRecursively(instance, clazz, rs, conn);
+                
+                // 2.2. Processa as associações que NÃO são resolvidas por herança (Coleções e Objetos Externos)
+                // Passamos a lógica para cá para evitar duplicidade dentro da recursão de campos simples.
+                processAssociations(instance, conn);
 
                 listEntity.add(instance);
             }
@@ -211,9 +198,9 @@ public class DataAccessObject {
      */
 // Método fillEntityRecursively (início): -----------------------------------------------------------------------------------------------------------------------------------------------------------
     private void fillEntityRecursively(IEntity instance, Class<?> currentClazz, ResultSet rs, Connection conn) throws Exception {
-        // A. Preenche os atributos da classe atual
+        // 1. Preenche os atributos da classe atual
         Method[] methods = currentClazz.getDeclaredMethods();
-        // 1. DENTRO DO SEU LOOP DE MÉTODOS SETTERS
+        // 1.1. DENTRO DO LOOP DE MÉTODOS SETTERS
         for (Method method : methods) {
             if (isSetter(method)) {
                 // System.out.println("DataAccessObject.fillEntityRecursively: method = " + method.getName());
@@ -221,46 +208,85 @@ public class DataAccessObject {
                 Class<?> paramType = method.getParameterTypes()[0];
 
                 // SE FOR UMA LISTA, PULE! (Trataremos fora deste loop)
-                if (Collection.class.isAssignableFrom(paramType)) {
-                    continue; 
-                }
+                if (Collection.class.isAssignableFrom(paramType)) continue;
 
                 String columnName = convertPascalCaseToSnakeCase(method.getName().substring(3));
+                Object value = null;
                 try {
-                    Object value = rs.getObject(columnName);
+                    value = rs.getObject(columnName);
                     if (value != null) {
-                         // Pega o tipo esperado pelo parâmetro do método (ex: Aluno.setNota(Double d) -> Double.class)
-                        Class<?> targetType = method.getParameterTypes()[0];
-                        
-                        // Converte o valor do RS para o tipo do parâmetro
-                        Object convertedValue = convertToTargetType(value, targetType);
-                        
+                        Object convertedValue;
+
+                        // 2. NOVA LÓGICA: Se o parâmetro for outra Entidade (ex: Cliente, Veiculo)
+                        if (IEntity.class.isAssignableFrom(paramType)) {
+                            // Instancia o objeto relacionado (ex: new Cliente())
+                            IEntity childInstance = (IEntity) paramType.getDeclaredConstructor().newInstance();
+                            
+                            // Define o ID no objeto filho (o valor vindo da FK, ex: cliente_id)
+                            long childId = ((Number) value).longValue();
+                            
+                            // Busca o setId do objeto filho para injetar o ID
+                            Method setId = getMethodInHierarchy(paramType, "setId", Long.class);
+                            if (setId == null) setId = getMethodInHierarchy(paramType, "setId", long.class);
+                            if (setId != null) setId.invoke(childInstance, childId);
+
+                            // Carrega os dados do objeto filho do banco de dados de forma recursiva
+                            // Isso preencherá o Cliente com nome, CPF, etc.
+                            readEntityComplete(childInstance, conn);
+                            
+                            // convertedValue = childInstance;
+                            convertedValue = childInstance;
+                            
+                        } else {
+                            // 3. Tipos comuns (String, Long, BigDecimal, etc.)
+                            convertedValue = convertToTargetType(value, paramType);
+                        }
+
                         method.invoke(instance, convertedValue);
                     }
                 } catch (SQLException e) {
-                    // Coluna não existe nesta tabela
+                    try {
+                        value = rs.getObject(columnName + "_id");
+                    } catch (SQLException e2) { /* Coluna realmente não existe */ }
                 }
             }
         }
 
-        // B. Condição de parada e Recursão
+        // 2. Condição de parada e Recursão
         Class<?> superClass = currentClazz.getSuperclass();
         if (superClass != null && IEntity.class.isAssignableFrom(superClass) && superClass != Object.class) {
             
             // --- GARANTIA DO ID ---
-            // Se o getId() retornar 0 ou null, tentamos pegar o 'id' do ResultSet atual 
+            // Se o getId() retornar 0 ou null, tentamos pegar o 'id' do ResultSet atual
             // antes de subir para o pai, caso o ID esteja na tabela da classe filha.
-            long currentId = instance.getId();
+            Long idObj = instance.getId(); // Pega como objeto Long (pode ser null)
+            long currentId = (idObj != null) ? idObj : 0L;
             if (currentId <= 0) {
                 try {
-                    currentId = rs.getLong("id");
-                    // Tenta achar o setId na hierarquia para garantir que o objeto tenha o ID
-                    Method setId = getMethodInHierarchy(instance.getClass(), "setId", long.class);
-                    if (setId != null) setId.invoke(instance, currentId);
+                   // Tenta pegar do ResultSet da tabela atual (filha)
+                    currentId = rs.getLong("id"); 
+                    
+                    if (currentId > 0) {
+                        // Busca o método setId em toda a hierarquia para garantir que o objeto receba o ID
+                        Method setId = getMethodInHierarchy(instance.getClass(), "setId", Long.class);
+                        if (setId == null) {
+                            // Tenta com o primitivo caso o setter use long
+                            setId = getMethodInHierarchy(instance.getClass(), "setId", long.class);
+                        }
+                        if (setId != null) {
+                            setId.invoke(instance, currentId);
+                        }
+                    }
                 } catch (SQLException e) {
-                    System.err.println("Erro: Não foi possível localizar o ID para buscar o pai.");
+                    // Se não achou a coluna 'id' na tabela atual, o ID obrigatoriamente
+                    // viria da classe pai, mas precisamos dele para o WHERE.
+                    System.err.println("Aviso: ID não encontrado na tabela " + currentClazz.getSimpleName());
                     return; // Se não tem ID, não tem como buscar o pai
                 }
+            }
+            // Se chegamos aqui e o ID continua 0, não há como buscar na tabela pai
+            if (currentId <= 0) {
+                return; 
             }
 
             String parentTable = tablePrefix + superClass.getSimpleName().toLowerCase();
@@ -275,96 +301,76 @@ public class DataAccessObject {
                 }
             }
         }
-        // C. Tratar Associações (Coleções)
-        // Dentro do fillEntityRecursively, adicione o tratamento de Coleções
-
-        // 2. APÓS O LOOP DE COLUNAS, TRATE A TABELA DE LIGAÇÃO
+        // 3.TRATAMENTO DE ASSOCIAÇÕES (Coleções) BASEADO EM ANOTAÇÃOAPÓS O LOOP DE COLUNAS, TRATA A TABELA DE LIGAÇÃO
+        //   3.1. field.isAnnotationPresent(...): O Java Reflection checa se o atributo tem a anotação específica. Isso elimina o "adivinhômetro".
+        //   3.2. Lógica 1:N (OneToMany): Em vez de chamar buildM2mSelectSql, nós montamos um SQL simples que busca na tabela da classe filha.
+        //        A convenção usada aqui é nome_da_classe_pai_id (ex: se a classe pai é Pessoa, a FK na tabela filha será pessoa_id).
+        //   3.3. Lógica N:N (ManyToMany): Mantém a chamada original para a tabela de ligação.Isolamento de ResultSet:
+        //      Note que usei stmtAssoc e rsAssoc. É vital não sobrescrever as variáveis stmt e rs do escopo superior para não quebrar a iteração principal.
         for (Field field : currentClazz.getDeclaredFields()) {
             if (Collection.class.isAssignableFrom(field.getType())) {
                 
-                // Descobre a classe dentro da lista (Veiculo)
+                // Verifica qual anotação está presente
+                boolean isOneToMany = field.isAnnotationPresent(OneToMany.class);
+                boolean isManyToMany = field.isAnnotationPresent(ManyToMany.class);
+
+                if (!isOneToMany && !isManyToMany) continue; // Pula se não tiver nenhuma das duas
+
                 ParameterizedType listType = (ParameterizedType) field.getGenericType();
                 Class<?> childClass = (Class<?>) listType.getActualTypeArguments()[0];
-
-                // Monta os nomes (já ajustados para singular como você pediu)
-                String tableFilha = tablePrefix + "veiculo"; 
-                String tableLigacao = tablePrefix + "locacao_veiculo";
                 
-                // SQL com WHERE restritivo
-                String sqlM2M = "SELECT v.* FROM `" + tableFilha + "` v " +
-                                "INNER JOIN `" + tableLigacao + "` l ON v.id = l.veiculo_id " +
-                                "WHERE l.locacao_id = ?";
+                String sql;
+                if (isManyToMany) {
+                    // N:N - Usa tabela de ligação (ex: aluno_curso)
+                    sql = buildM2mSelectSql(currentClazz, childClass);
+                } else {
+                    // 1:N - Busca direto na tabela filha usando a FK
+                    // Ex: SELECT * FROM veiculo WHERE proprietario_id = ?
+                    String fkColumn = currentClazz.getSimpleName().toLowerCase() + "_id";
+                    String childTable = tablePrefix + childClass.getSimpleName().toLowerCase();
+                    sql = "SELECT * FROM `" + childTable + "` WHERE `" + fkColumn + "` = ?";
+                }
 
-
-                System.out.println("DataAccessObject: fillEntityRecursively = " + sqlM2M + " onde ? = " + instance.getId()); // Depurar a query de ligação.
-                try (PreparedStatement stmt = conn.prepareStatement(sqlM2M)) {
-                    stmt.setLong(1, instance.getId()); 
-                    ResultSet rsM2M = stmt.executeQuery();
+                try (PreparedStatement stmtAssoc = conn.prepareStatement(sql)) {
+                    stmtAssoc.setLong(1, instance.getId());
+                    ResultSet rsAssoc = stmtAssoc.executeQuery();
                     
                     List<Object> lista = new ArrayList<>();
-                    while (rsM2M.next()) {
+                    while (rsAssoc.next()) {
                         IEntity child = (IEntity) childClass.getDeclaredConstructor().newInstance();
-                        // RECURSÃO: Preenche o veículo com os dados do ResultSet filtrado
-                        fillEntityRecursively(child, childClass, rsM2M, conn);
+                        // Recursão para preencher os dados do objeto filho
+                        fillEntityRecursively(child, childClass, rsAssoc, conn);
                         lista.add(child);
                     }
                     
-                    // Invocação do setter da lista
                     String setterName = "set" + capitalize(field.getName());
                     Method method = currentClazz.getMethod(setterName, field.getType());
                     method.invoke(instance, lista);
                 }
             }
         }
+    }
+//  -----------------------------------------------------------------------------------------------------------------------------------------------------------
+    private void readEntityComplete(IEntity entity, Connection conn) throws Exception {
+    Class<?> clazz = entity.getClass();
+    String tableName = tablePrefix + clazz.getSimpleName().toLowerCase();
+    String sql = "SELECT * FROM `" + tableName + "` WHERE id = ?";
 
-        /* 
-        for (Field field : currentClazz.getDeclaredFields()) {
-            if (Collection.class.isAssignableFrom(field.getType())) {
-                
-                // Descobre que é uma lista de "Veiculo"
-                ParameterizedType listType = (ParameterizedType) field.getGenericType();
-                Class<?> childClass = (Class<?>) listType.getActualTypeArguments()[0];
-
-                // Monta os nomes seguindo o padrão que definimos no MySQL
-                String tableFilha = "table_" + childClass.getSimpleName().toLowerCase(); // table_veiculos
-                String tableLigacao = "table_locacao_veiculo"; // Nome manual ou gerado
-                String fkPai = "locacao_id";
-                String fkFilha = "veiculo_id";
-
-                // O SELECT CRUCIAL: Aqui o WHERE garante que traz só os veículos daquela locação
-                String sqlM2M = "SELECT v.* FROM `" + tableFilha + "` v " +
-                                "INNER JOIN `" + tableLigacao + "` l ON v.id = l." + fkFilha + " " +
-                                "WHERE l." + fkPai + " = ?";
-
-                try (PreparedStatement stmtM2M = conn.prepareStatement(sqlM2M)) {
-                    stmtM2M.setLong(1, instance.getId()); // ID da Locação atual
-                    
-                    ResultSet rsM2M = stmtM2M.executeQuery();
-                    List<Object> listaFilhos = new ArrayList<>();
-                    
-                    while (rsM2M.next()) {
-                        // Cria o objeto Veiculo e preenche recursivamente
-                        IEntity childInstance = (IEntity) childClass.getDeclaredConstructor().newInstance();
-                        fillEntityRecursively(childInstance, childClass, rsM2M, conn);
-                        listaFilhos.add(childInstance);
-                    }
-
-                    // Atribui a lista ao objeto Locacao
-                    String setterName = "set" + capitalize(field.getName());
-                    Method setter = currentClazz.getMethod(setterName, field.getType());
-                    setter.invoke(instance, listaFilhos);
-                }
+    // IMPORTANTE: Não use ConnectionDB.getInstance() aqui, use a 'conn' recebida!
+    try (PreparedStatement stmt = conn.prepareStatement(sql)) {
+        stmt.setLong(1, entity.getId());
+        try (ResultSet rs = stmt.executeQuery()) {
+            if (rs.next()) {
+                // Chama a recursão para preencher campos simples e herança do objeto filho
+                fillEntityRecursively(entity, clazz, rs, conn);
             }
         }
-        */
-
-
-
-
     }
-// Método fillEntityRecursively (fim): -----------------------------------------------------------------------------------------------------------------------------------------------------------
+}
 
-// Método getMethodInHierarchy (início): ----------------------------------------------------------------------------------------------------------------------------------------------------------- 
+//  -----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+    // Método getMethodInHierarchy ----------------------------------------------------------------------------------------------------------------------------------------------------------- 
     private Method getMethodInHierarchy(Class<?> clazz, String methodName, Class<?>... parameterTypes) {
         Class<?> current = clazz;
         while (current != null && current != Object.class) {
@@ -381,14 +387,25 @@ public class DataAccessObject {
         return method.getName().startsWith("set") && method.getParameterCount() == 1 && Modifier.isPublic(method.getModifiers());
     }
 
-    // Métodos convertPascalCaseToSnakeCase e buildWhereClause ...
-    // Converter Pascal Case para Snake Case
-    private static String convertPascalCaseToSnakeCase(String pascalCase ){
-        return pascalCase.replaceAll("([a-z0-9])([A-Z])", "$1_$2").toLowerCase();
-    }
-// Método getMethodInHierarchy (fim): ----------------------------------------------------------------------------------------------------------------------------------------------------------- 
+    // Métodos convertPascalCaseToSnakeCase:
+    private String convertPascalCaseToSnakeCase(String name) {
+        // 1. Converte de PascalCase para snake_case (ex: Cliente -> cliente, ClienteEspecial -> cliente_especial)
+        StringBuilder result = new StringBuilder();
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (Character.isUpperCase(c) && i > 0) {
+                result.append('_');
+            }
+            result.append(Character.toLowerCase(c));
+        }
 
- // Método buildWhereClause (início): -----------------------------------------------------------------------------------------------------------------------------------------------------------   
+        String snakeCase = result.toString();
+
+        return snakeCase;
+    }
+
+
+    // Método buildWhereClause (início): -----------------------------------------------------------------------------------------------------------------------------------------------------------   
     private String buildWhereClause(IEntity entity) {
         StringBuilder where = new StringBuilder();
         Class<?> clazz = entity.getClass();
@@ -402,11 +419,10 @@ public class DataAccessObject {
 
                     // Só adiciona ao WHERE se o valor não for nulo/vazio/zero
                     if (isValidValue(value)) {
-                        System.out.println("DataAccessObject: isValidValue = " + value);
+                        // System.out.println("DataAccessObject: isValidValue = " + value);
                         // Remove 'get' ou 'is', converte para snake_case
                         // String fieldName = method.getName().startsWith("get") ? 3 : 2;
-                        // String columnName = convertPascalCaseToSnakeCase(method.getName().substring(fieldName));
-
+                        // Chama o conversor passando o nome e o tipo do parâmetro
                         String columnName = convertPascalCaseToSnakeCase(method.getName().substring(3));
                         
                         if (where.length() == 0) {
@@ -429,7 +445,64 @@ public class DataAccessObject {
         }
         return where.toString();
     }
-// Método buildWhereClause (fim): -----------------------------------------------------------------------------------------------------------------------------------------------------------
+    // Método buildWhereClause (fim): -----------------------------------------------------------------------------------------------------------------------------------------------------------
+
+    private void processAssociations(IEntity instance, Connection conn) throws Exception {
+        for (Field field : instance.getClass().getDeclaredFields()) {
+            if (Collection.class.isAssignableFrom(field.getType())) {
+                
+                ParameterizedType listType = (ParameterizedType) field.getGenericType();
+                Class<?> childClass = (Class<?>) listType.getActualTypeArguments()[0];
+
+                if (IEntity.class.isAssignableFrom(childClass)) {
+                    
+                    // 1. Tenta identificar se é 1:N (Chave Estrangeira na Filha)
+                    // Ex: Se o Pai é Usuario, procura setUsuarioId na Locacao
+                    String fkSetterName = "set" + instance.getClass().getSimpleName() + "Id";
+                    Method fkSetter = getMethodInHierarchy(childClass, fkSetterName, Long.class);
+
+                    if (fkSetter != null) {
+                        // --- LÓGICA 1:N ---
+                        IEntity criteria = (IEntity) childClass.getDeclaredConstructor().newInstance();
+                        fkSetter.invoke(criteria, instance.getId());
+                        
+                        // Chama o read dinâmico que já trata o WHERE automaticamente
+                        List<IEntity> result = this.read(criteria);
+                        
+                        field.setAccessible(true);
+                        field.set(instance, result);
+                        
+                    } else {
+                        // --- LÓGICA N:N (Tabela de Ligação) ---
+                        // Se não encontrou o setter da FK, assume que há uma tabela intermediária
+                        try {
+                            String sqlM2M = buildM2mSelectSql(instance.getClass(), childClass);
+                            
+                            try (PreparedStatement stmt = conn.prepareStatement(sqlM2M)) {
+                                stmt.setLong(1, instance.getId());
+                                try (ResultSet rsM2M = stmt.executeQuery()) {
+                                    List<IEntity> listaM2M = new ArrayList<>();
+                                    while (rsM2M.next()) {
+                                        IEntity child = (IEntity) childClass.getDeclaredConstructor().newInstance();
+                                        // Preenche o objeto com os dados vindo do JOIN
+                                        fillEntityRecursively(child, childClass, rsM2M, conn);
+                                        listaM2M.add(child);
+                                    }
+                                    field.setAccessible(true);
+                                    field.set(instance, listaM2M);
+                                }
+                            }
+                        } catch (SQLException e) {
+                            // Se a tabela N:N também não existir, logamos o aviso
+                            System.err.println("Aviso: Não foi possível associar " + field.getName() + 
+                                            ". Nem FK nem Tabela de Ligação encontradas.");
+                        }
+                    }
+                }
+            }
+        }
+    }
+   // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
     private boolean isValidValue(Object value) {
         if (value == null) return false;
@@ -458,21 +531,16 @@ public class DataAccessObject {
         return true;
     }
 
-    /**
-     * Valida se o método é um getter padrão Java Bean.
-     */
-    private boolean isGetter(Method method) {
-        String name = method.getName();
-        return (name.startsWith("get") || name.startsWith("is"))
-                && method.getParameterCount() == 0
-                && !name.equals("getClass")
-                && Modifier.isPublic(method.getModifiers());
-    }
-
     // Este método garante que o valor vindo do banco seja compatível com o tipo do método setter. A conversão seja feita antes do invoke.
     private Object convertToTargetType(Object value, Class<?> targetType) {
-        if (value == null) return null;
-        if (targetType.isInstance(value)) return value;
+        
+        if (value == null) return null; // Se o valor for nulo, ignora.
+        if (targetType.isInstance(value)) return value; // Se o valor for coleção, ignora, pois será tratado em outro local.
+        // Verificação inicial ou dentro do default
+        if (targetType.isEnum()) {
+            return Enum.valueOf((Class<Enum>) targetType, value.toString());
+        }
+        // System.out.println("DataAccessObject.convertToTargetType: Tipo de atributo = " + targetType.getSimpleName());
 
         // Switch moderno simplifica a lógica de "Para qual tipo vou?"
         return switch (targetType.getSimpleName()) {
@@ -481,7 +549,12 @@ public class DataAccessObject {
                 case String s -> Integer.parseInt(s.trim());
                 default -> 0;
             };
-            case "Long", "long" -> (value instanceof Number n) ? n.longValue() : 0;
+            // Proteção para null antes de chamar .longValue():
+            case "Long", "long" -> {
+                if (value == null) yield 0L; // Evita o NPE
+                if (value instanceof Number n) yield n.longValue();
+                yield 0L;
+            }
             case "BigDecimal" -> new java.math.BigDecimal(value.toString());
             case "Boolean", "boolean" -> switch (value) {
                 case Boolean b -> b;
@@ -496,84 +569,14 @@ public class DataAccessObject {
                 case String s -> java.time.LocalDateTime.parse(s);
                 default -> 0;
             };
-            default -> 0;
+            default -> {
+                if (targetType.isEnum()) {
+                    yield Enum.valueOf((Class<Enum>) targetType, value.toString().toUpperCase().trim());
+                }
+                yield value; // ou null
+            }
         };
     }
-
-    private void processAssociations(IEntity instance, Connection conn) throws Exception {
-
-
-        Field[] fields = instance.getClass().getDeclaredFields();
-
-        for (Field field : fields) {
-            // 1. Verificar se o atributo é uma List
-            if (Collection.class.isAssignableFrom(field.getType())) { // Verifida se se trata de coleções.
-                
-                // Pegar o tipo genérico da lista (ex: Endereco)
-                ParameterizedType listType = (ParameterizedType) field.getGenericType();
-                Class<?> genericClass = (Class<?>) listType.getActualTypeArguments()[0];
-
-                // Verificar se o tipo da lista implementa IEntity
-                if (IEntity.class.isAssignableFrom(genericClass)) { // Verifica se é uma das minhas classes de domínio (ignora as classes padrão do Java).
-                    
-                    // 2. Instanciar a entidade da lista (ex: new Endereco())
-                    IEntity associationEntity = (IEntity) genericClass.getDeclaredConstructor().newInstance();
-
-                    // 3. Setar o ID da classe principal na entidade filha (FK)
-                    // Ex: se a classe principal é Cliente, busca setClienteId(Long id)
-                    String fkSetterName = "set" + instance.getClass().getSimpleName() + "Id";
-                    System.out.println("DataAccessObject: (fkSetterName) = " + fkSetterName + " = " + instance.getId());
-                    try {
-                        // Busca o método na classe filha e invoca
-                        Method fkSetter = getMethodInHierarchy(genericClass, fkSetterName, Long.class);
-                        System.out.println("DataAccessObject: genericClass = " + genericClass.getSimpleName() + " associationEntity = " + associationEntity.getClass().getSimpleName());
-                        if (fkSetter != null) { // Verifica se encontrou o método (não nulo).
-                            System.out.println("DataAccessObject: ...processando fkSetter.invoke ");
-                            fkSetter.invoke(associationEntity, instance.getId());
-                        }
-
-                        // 4. Chama o read recursivamente e atribui o resultado à lista
-                        // Nota: 'this.read' retorna List<IEntity>, fazemos o cast para a coleção do campo
-                        List<IEntity> result = this.read(associationEntity);
-                        
-                        field.setAccessible(true);
-                        field.set(instance, result);
-
-                    } catch (Exception e) {
-                        System.err.println("Aviso: Não foi possível processar associação " + field.getName());
-                    }
-                }
-            
-            } else if (IEntity.class.isAssignableFrom(field.getType()) && !Collection.class.isAssignableFrom(field.getType())) { // Filtro: Identifica campos que implementam IEntity, mas não são coleções.
-                
-                Class<?> fieldClass = field.getType();
-                
-                // 1. Instanciar a entidade (ex: new Wishlist())
-                IEntity associationEntity = (IEntity) fieldClass.getDeclaredConstructor().newInstance();
-                System.out.println("DataAccessObject: associationEntity.getClass().getSimpleName() = " + associationEntity.getClass().getSimpleName());
-
-                // 2. Setar o ID da classe principal (FK)
-                String fkSetterName = "set" + instance.getClass().getSimpleName() + "Id";
-                Method fkSetter = getMethodInHierarchy(fieldClass, fkSetterName, Long.class);
-                
-                if (fkSetter != null) {
-                    fkSetter.invoke(associationEntity, instance.getId());
-                    System.out.println("DataAccessObject: instance.getId() = " + instance.getId());
-                    
-                    // 3. Chamar o read e pegar apenas o primeiro resultado
-                    List<IEntity> results = this.read(associationEntity);
-                    
-                    if (!results.isEmpty()) {
-                        field.setAccessible(true);
-                        field.set(instance, results.get(0)); // Pega a primeira e única
-                    }
-                }
-            }
-        }
-    }
-    // Método read, fim.
-    // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-    // -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
     // Método update, início.
 
     /*
@@ -735,6 +738,30 @@ public class DataAccessObject {
         // Pega a primeira letra, coloca em maiúsculo e concatena com o resto da string
         return (str == null || str.length() == 0) ? str
             : str.substring(0, 1).toUpperCase() + str.substring(1);
+    }
+    private String buildInsertSql(Class<?> clazz, List<String> columns) {
+        return "INSERT INTO " + tablePrefix + clazz.getSimpleName().toLowerCase() 
+            + " (" + String.join(", ", columns) + ") VALUES (" 
+            + String.join(", ", Collections.nCopies(columns.size(), "?")) + ")";
+    }
+
+    private String buildM2mSelectSql(Class<?> parentClass, Class<?> childClass) {
+        String tableChild = tablePrefix + childClass.getSimpleName().toLowerCase();
+        String tableLink = tablePrefix + parentClass.getSimpleName().toLowerCase() + "_" + childClass.getSimpleName().toLowerCase();
+        String fkChild = childClass.getSimpleName().toLowerCase() + "_id";
+        String fkParent = parentClass.getSimpleName().toLowerCase() + "_id";
+        
+        return "SELECT c.* FROM `" + tableChild + "` c " +
+            "INNER JOIN `" + tableLink + "` l ON c.id = l." + fkChild + " " +
+            "WHERE l." + fkParent + " = ?";
+    }
+    // Valida se o método é um getter padrão Java Bean.
+    private boolean isGetter(Method method) {
+        String name = method.getName();
+        return (name.startsWith("get") || name.startsWith("is"))
+                && method.getParameterCount() == 0
+                && !name.equals("getClass")
+                && Modifier.isPublic(method.getModifiers());
     }
 
 }

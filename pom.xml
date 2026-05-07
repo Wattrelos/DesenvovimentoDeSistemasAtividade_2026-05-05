@@ -75,12 +75,6 @@
 			<artifactId>lombok</artifactId>
 			<optional>true</optional>
 		</dependency>
-
-		<dependency>
-			<groupId>org.springframework.boot</groupId>
-			<artifactId>spring-boot-starter-test</artifactId>
-			<scope>test</scope>
-		</dependency>
 	</dependencies>
 
 	<build>
@@ -88,6 +82,28 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+			<plugin>
+				<groupId>com.iluwatar.urm</groupId>
+				<artifactId>urm-maven-plugin</artifactId>
+				<version>2.1.1</version>
+				<configuration>
+					<!-- Define o pacote que ele deve escanear -->
+					<packages>
+						<package>com.desenvolvimento.sistemas.model.domain</package>
+					</packages>
+					<!-- Define o formato de saída como Mermaid -->
+					<!-- mermaid/PlantUML -->
+					<presenter>PlantUML</presenter>
+				</configuration>
+				<executions>
+					<execution>
+						<phase>process-classes</phase> <!-- O plugin roda logo após a compilação -->
+						<goals>
+							<goal>map</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>

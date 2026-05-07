@@ -18,4 +18,9 @@ public class Principal implements IEntity {
     public void setDescricao(String descricao) { this.descricao = descricao; }
     public Date getDataCadastro() { return dataCadastro; }
     public void setDataCadastro(java.util.Date dataCadastro) { this.dataCadastro = dataCadastro; }
+    @Override
+    public String toString() {
+        return "Principal [id=" + id + ", nome=" + nome + ", descricao=" + descricao + ", dataCadastro=" + dataCadastro
+                + "]";
+    }
 }

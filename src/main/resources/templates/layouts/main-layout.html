@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html xmlns:th="http://thymeleaf.org" 
+    xmlns:layout="http://ultraq.net.nz">
+<head>
+    <!-- 1. CSS de uso geral (carrega primeiro) -->
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+    
+    <!-- Chama o CSS do header aqui no HEAD -->
+    <th:block th:replace="~{fragments/header :: header-css}"></th:block>
+
+</head>
+<body>
+    <!-- Chama o HTML do header aqui no BODY -->
+    <div th:replace="~{fragments/header :: header}"></div>
+        
+    <div class="content-wrapper"> 
+
+        <main class="main-content" layout:fragment="content">
+            <!-- Conteúdo principal sempre aparece -->
+        </main>
+    </div>
+
+</body>
+</html>

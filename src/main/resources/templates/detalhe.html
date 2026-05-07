@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html xmlns:th="http://thymeleaf.org" 
+    xmlns:layout="http://ultraq.net.nz"
+    layout:decorate="~{layouts/main-layout}">
+<head>
+    <title>Sobre Nós - GWJ</title>
+    <!-- Se quiser um CSS específico só para esta página -->
+    <!-- <link rel="stylesheet" th:href="@{/css/sobre.css}">-->
+</head>
+<body>
+
+    <!-- Note que NÃO incluímos o bloco 'aside-content' aqui.
+        Isso fará com que o aside suma e o main ocupe 100% da largura. -->
+
+    <section layout:fragment="content">
+        <div class="container mt-4">
+            <h2 th:text="${'Detalhes da Entidade: ' + entidadeNome}">Detalhes</h2>
+            <hr>
+
+            <!-- Iteramos sobre a lista 'detalhe' (que é sua List<IEntity>) -->
+            <div th:each="obj : ${detalhe}">
+                <form class="row g-3">
+                    
+                    <!-- Iteramos sobre os nomes das colunas extraídas por reflexão -->
+                    <div th:each="coluna : ${colunas}" class="col-md-6">
+                        <label th:for="${coluna}" class="form-label" th:text="${#strings.capitalize(coluna)}">Campo</label>
+                        
+                        <!-- A "mágica" do Thymeleaf: obj['nomeDaVariavel'] acessa o getter automaticamente -->
+                        <input type="text" 
+                            class="form-control" 
+                            th:id="${coluna}" 
+                            th:value="${obj[coluna]}" 
+                            readonly>
+                    </div>
+
+                    <div class="col-12 mt-4">
+                        Voltar</a>
+                        <button type="button" class="btn btn-primary">Editar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </section>
+
+
+</body>
+</html>

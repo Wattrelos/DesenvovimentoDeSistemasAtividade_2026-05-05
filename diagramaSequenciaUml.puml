@@ -1,0 +1,40 @@
+@startuml
+title Diagrama de Sequência: Método create()
+
+' Definição das Raias (Participantes)
+participant "dao:DataAccessObject" as DAO
+participant "sqlBuilder:SqlUtils" as Utils
+participant "conn:Connection" as Conn
+participant "stmt:PreparedStatement" as Stmt
+
+[-> DAO : create(entity)
+activate DAO
+
+    DAO -> DAO : buildInsertSql(entity)
+    activate DAO
+    note right: Usa reflexão para ler campos
+    DAO --[#blue]> DAO : retorna "INSERT INTO..."
+    deactivate DAO
+
+    DAO -> DAO : buildParameters(entity)
+    activate DAO
+    DAO --[#blue]> DAO : retorna Object[] params
+    deactivate DAO
+
+    DAO -> Conn : prepareStatement(sql)
+    activate Conn
+    Conn --> Stmt** : instanciar
+    Conn --[#blue]> DAO : retorna stmt
+    deactivate Conn
+
+    DAO -> Stmt : setParameters(params)
+    activate Stmt
+    DAO -> Stmt : executeUpdate()
+    
+    Stmt --[#blue]> DAO : retorna int (rowsAffected)
+    deactivate Stmt
+
+[<-- DAO : retorna boolean (sucesso)
+deactivate DAO
+
+@enduml

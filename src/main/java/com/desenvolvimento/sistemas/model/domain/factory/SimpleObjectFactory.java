@@ -11,7 +11,7 @@ public abstract class SimpleObjectFactory {
     public static IEntity create(String fullClassName) {
         try {
             // 1. Carrega a classe dinamicamente
-            Class<?> clazz = Class.forName(AppConfig.ENTITIES_PATH + fullClassName);
+            Class<?> clazz = Class.forName(AppConfig.ENTITIES_PATH  + "." +  fullClassName);
 
             // 2. Valida se a classe é compatível com IEntity
             if (IEntity.class.isAssignableFrom(clazz)) {

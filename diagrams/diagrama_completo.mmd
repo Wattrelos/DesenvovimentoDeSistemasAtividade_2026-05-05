@@ -1,0 +1,200 @@
+classDiagram
+class IEntity { 
+<<interface>>
++ Long getId()
++ void setId(Long)
+}
+
+class Manutencao { 
++ Long getId()
++ void setId(Long)
++ LocalDateTime getDataServico()
++ void setDataServico(LocalDateTime)
++ String getDescricao()
++ void setDescricao(String)
++ String toString()
++ BigDecimal getValorGasto()
++ void setValorGasto(BigDecimal)
++ Long getVeiculoId()
++ void setVeiculoId(Long)
+}
+
+class Categoria { 
++ Long getId()
++ void setId(Long)
++ String getNome()
++ void setNome(String)
++ BigDecimal getValor_diaria()
++ void setValor_diaria(BigDecimal)
++ String getDescricao()
++ void setDescricao(String)
++ String toString()
+}
+
+class ClassGeneratorFromDataBase3 { 
++ void main(String[])$
++ void generateClasses(String,String)
+}
+
+class SimpleObjectFactory { 
+<<abstract>>
++ IEntity create(String)$
+}
+
+class Registro { 
++ Registro Registro()
++ Long getId()
++ void setId(Long)
++ Long getIdUsuario()
++ void setIdUsuario(Long)
++ String getNome()
++ void setNome(String)
++ Long getStatus()
++ void setStatus(Long)
++ Date getDataRegistro()
++ void setDataRegistro(java.util.Date)
++ String toString()
+}
+
+class Principal { 
++ Principal Principal()
++ Long getId()
++ void setId(Long)
++ String getNome()
++ void setNome(String)
++ String getDescricao()
++ void setDescricao(String)
++ Date getDataCadastro()
++ void setDataCadastro(java.util.Date)
++ String toString()
+}
+
+class SchemaValidator { 
++ void validateAllEntities()$
+}
+
+class Acessorio { 
++ Long getId()
++ void setId(Long)
++ String getNome()
++ void setNome(String)
++ BigDecimal getValorAdicional()
++ void setValorAdicional(BigDecimal)
++ String toString()
+}
+
+class Cliente { 
++ Cliente Cliente()
++ String getNome()
++ void setNome(String)
++ String getCpf_cnpj()
++ void setCpf_cnpj(String)
++ String getCnh()
++ void setCnh(String)
++ String getEmail()
++ void setEmail(String)
++ String getTelefone()
++ void setTelefone(String)
++ Date getDataCadastro()
++ void setDataCadastro(Date)
++ String toString()
+}
+
+class Veiculo { 
++ Veiculo Veiculo()
++ Long getId()
++ void setId(Long)
++ String getModelo()
++ void setModelo(String)
++ String getDescricao()
++ void setDescricao(String)
++ String getPlaca()
++ void setPlaca(String)
++ String getMarca()
++ void setMarca(String)
++ int getAno()
++ void setAno(int)
++ String getCor()
++ void setCor(String)
++ Long getKmAtual()
++ void setKmAtual(Long)
++ StatusVeiculo getStatusVeiculo()
++ void setStatusVeiculo(StatusVeiculo)
++ Categoria getCategoriaId()
++ void setCategoriaId(Categoria)
++ BigDecimal getValorDiariaPadrao()
++ void setValorDiariaPadrao(BigDecimal)
++ List~Manutencao~ getListaManutencoes()
++ void setListaManutencoes(List~Manutencao~)
++ String toString()
+}
+
+class Veiculo_StatusVeiculo { 
+<<enum>>
++ DISPONIVEL$
++ LOCADO$
++ MANUTENCAO$
++ ALIENADO$
+}
+
+class Usuario { 
++ Usuario Usuario()
++ Long getId()
++ void setId(Long)
++ String getNomeUsuario()
++ void setNomeUsuario(String)
++ String getSenha()
++ void setSenha(String)
++ String toString()
+}
+
+class Locacao { 
++ Locacao Locacao()
++ Long getId()
++ String toString()
++ void setId(Long)
++ LocalDateTime getDataRetirada()
++ void setDataRetirada(LocalDateTime)
++ LocalDateTime getDataPrevisaoDevolucao()
++ void setDataPrevisaoDevolucao(LocalDateTime)
++ BigDecimal getValorDiariaAplicado()
++ void setValorDiariaAplicado(BigDecimal)
++ StatusLocacao getStatusLocacao()
++ void setStatusLocacao(StatusLocacao)
++ Cliente getClienteId()
++ void setClienteId(Cliente)
++ Veiculo getVeiculoId()
++ void setVeiculoId(Veiculo)
++ StatusLocacao getStatus()
++ void setStatus(StatusLocacao)
++ List~Acessorio~ getAcessorio()
++ void setAcessorio(List~Acessorio~)
++ BigDecimal calcularValorTotal()
+}
+
+class Locacao_StatusLocacao { 
+<<enum>>
++ RESERVADA$
++ ATIVA$
++ FINALIZADA$
++ CANCELADA$
+}
+
+IEntity <|.. Manutencao
+IEntity <|.. Categoria
+IEntity .. SimpleObjectFactory
+IEntity <|.. Registro
+IEntity <|.. Principal
+IEntity <|.. Acessorio
+Usuario <|-- Cliente
+IEntity <|.. Veiculo
+Categoria .. Veiculo
+Manutencao .. Veiculo
+Veiculo_StatusVeiculo <.. Veiculo : << contains >>
+IEntity <|.. Usuario
+IEntity <|.. Locacao
+Cliente .. Locacao
+Veiculo .. Locacao
+Acessorio .. Locacao
+Locacao_StatusLocacao <.. Locacao : << contains >>
+

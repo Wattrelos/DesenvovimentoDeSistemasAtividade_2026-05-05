@@ -1,0 +1,41 @@
+classDiagram
+    class Cliente
+    class Registro
+    class Manutencao
+    class Categoria
+    class Veiculo {
+        -Long id
+        -String modelo
+        -String marca
+        -int ano
+        -String cor
+        -Long kmAtual
+        -BigDecimal valorDiariaPadrao
+        -String descricao
+        -String placa
+        -StatusVeiculo statusVeiculo
+    }
+    class Usuario
+    class Acessorio
+    class Locacao {
+            -Long id
+            -LocalDateTime dataRetirada
+            -LocalDateTime dataPrevisaoDevolucao
+            -BigDecimal valorDiariaAplicado
+            -StatusLocacao statusLocacao
+            -Cliente cliente %% cliente (cliente_id) e FK de Cliente
+            -Veiculo veiculo %% veiculo (veiculo_id) e FK de Veiculo
+            -List<Acessorio> acessorio
+    }
+
+    %% Relacionamentos Sugeridos (ajuste conforme seu código)
+    Locacao "*" -- "1" Cliente : feita por
+    Locacao "*" -- "1" Veiculo : reserva
+    Locacao "*" -- "*" Acessorio : possui
+    Veiculo "*" -- "1" Categoria : pertence a
+    Locacao "*" -- "1" Veiculo : reserva
+    Manutencao "*" -- "1" Veiculo : realizada em
+    Registro "*" -- "1" Locacao : gera
+    
+    note for Principal "Classe de Entrada (Main)"
+    note for SchemaValidator "Utilitario de Validacao"

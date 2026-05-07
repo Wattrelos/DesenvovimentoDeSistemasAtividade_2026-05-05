@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html xmlns:th="http://thymeleaf.org" 
+    xmlns:layout="http://ultraq.net.nz"
+    layout:decorate="~{layouts/main-layout}">
+<head>
+    <title>Desenvolvimento de Sistemas</title>
+    <!-- Se quiser um CSS específico só para esta página -->
+    <!-- <link rel="stylesheet" th:href="@{/css/sobre.css}">-->
+</head>
+<body>
+
+    <!-- Note que NÃO incluímos o bloco 'aside-content' aqui.
+        Isso fará com que o aside suma e o main ocupe 100% da largura. -->
+
+    <section layout:fragment="content">
+        <h1>Desenvolvimento de Sistemas</h1>
+        <h2>Página inicial da Locadora</h2>
+        <li th:each="nome : ${entidades}">
+            <a th:href="@{/listar/{id}(id=${nome})}" th:text="'Abrir lista de ' + ${nome}"></a>
+        </li>
+    </section>
+
+</body>
+</html>

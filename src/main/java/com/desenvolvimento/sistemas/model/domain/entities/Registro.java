@@ -21,4 +21,9 @@ public class Registro implements IEntity {
     public void setStatus(Long status) { this.status = status; }
     public Date getDataRegistro() { return dataRegistro; }
     public void setDataRegistro(java.util.Date dataRegistro) { this.dataRegistro = dataRegistro; }
+    @Override
+    public String toString() {
+        return "Registro [id=" + id + ", idUsuario=" + idUsuario + ", nome=" + nome + ", status=" + status
+                + ", dataRegistro=" + dataRegistro + "]";
+    }
 }

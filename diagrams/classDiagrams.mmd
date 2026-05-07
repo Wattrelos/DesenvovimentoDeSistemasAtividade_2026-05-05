@@ -1,0 +1,38 @@
+classDiagram
+    class DataAccessObject {
+        +read(IEntity entity)
+    }
+
+    class IEntity {
+        <<interface>>
+    }
+
+    class Pedido {
+        -List~Item~ itens
+        -Cliente cliente
+    }
+
+    %% Representando a Lista (Associação 1 para Muitos)
+    Pedido "1" --> "*" Item : possui
+
+    %% Representando o Objeto Externo (Associação 1 para 1)
+    Pedido "0..1" --o "1" Cliente : pertence a
+classDiagram
+    class DataAccessObject {
+        +read(IEntity entity)
+    }
+
+    class IEntity {
+        <<interface>>
+    }
+
+    class Pedido {
+        -List~Item~ itens
+        -Cliente cliente
+    }
+
+    %% Representando a Lista (Associação 1 para Muitos)
+    Pedido "1" --> "*" Item : possui
+
+    %% Representando o Objeto Externo (Associação 1 para 1)
+    Pedido "0..1" --o "1" Cliente : pertence a

@@ -30,7 +30,7 @@ public class EntityMapper {
                 String paramValue = request.getParameter(fieldName);
                 // Só tenta preencher se o parâmetro existir no request e não for nulo/vazio
                 // Isso significa que, se o usuário apagar um texto no formulário (enviando ""), o setter não será chamado. Como o setter não é chamado, o atributo da entidade permanece nulo
-                // Se você quiser permitir que o usuário limpe um campo de texto, mude a verificação para permitir Strings vazias, mas bloqueie apenas o que realmente não veio no request:                
+                // Se você quiser permitir que o usuário limpe um campo de texto, mude a verificação para permitir Strings vazias, mas bloqueie apenas o que realmente não veio no request:
                 if (paramValue != null && !paramValue.trim().isEmpty()) {
                     try {
                         Class<?> parameterType = method.getParameterTypes()[0];

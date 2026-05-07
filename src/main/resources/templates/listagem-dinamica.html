@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html xmlns:th="http://thymeleaf.org" 
+    xmlns:layout="http://ultraq.net.nz"
+    layout:decorate="~{layouts/main-layout}">
+<head>
+    <title>Sobre Nós - GWJ</title>
+    <!-- Se quiser um CSS específico só para esta página -->
+    <!-- <link rel="stylesheet" th:href="@{/css/sobre.css}">-->
+</head>
+<body>
+
+    <!-- Note que NÃO incluímos o bloco 'aside-content' aqui.
+        Isso fará com que o aside suma e o main ocupe 100% da largura. -->
+
+    <section layout:fragment="content">
+        <div class="data-table">
+            <h3 th:text="'Listagem de ' + ${entidadeNome}"></h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th th:each="col : ${colunas}" th:text="${#strings.capitalize(col)}">Coluna</th>
+                        <th>Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr th:each="item : ${lista}">
+                        <td th:each="col : ${colunas}">
+                            <div th:replace="~{fragments/recursiveField :: recursiveField(${item[col]})}"></div>
+                        </td>
+                        <td>
+                            <!-- Link formatado corretamente -->
+                            <!--<a th:href="@{/detalhe/(id=${item.id})}" th:text="'Ver'"></a> -->
+                            <a th:href="@{/detalhe/{entity}(entity=${entidadeNome}, id=${item.id})}" th:text="'Ver'"></a>
+                            
+                        </td>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+</body>
+</html>
